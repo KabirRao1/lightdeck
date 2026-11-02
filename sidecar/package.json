@@ -1,0 +1,20 @@
+{
+  "name": "lightdeck-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@matter/main": "^0.18.0",
+    "@matter/types": "^0.18.0",
+    "@project-chip/matter.js": "^0.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
