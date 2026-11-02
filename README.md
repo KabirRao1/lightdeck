@@ -44,8 +44,20 @@ device be controlled by several apps at once, and Lightdeck is just one more.
 | 🔒 **Private** | Local-only, no telemetry, no account. Your device credentials never leave your PC. |
 | 🌗 **Light and dark** | Follows your Windows theme, or pick one. |
 
+## Tested devices
+
+| Brand | Device | Works |
+| --- | --- | --- |
+| **Cync** (GE Lighting) | Matter-enabled Wi-Fi color bulbs | ✅ on/off, brightness, color, white temperature |
+| **Sengled** | Matter Wi-Fi color bulbs | ✅ on/off, brightness, color, white temperature |
+
+Any Matter-certified light or plug should work, since Lightdeck only uses standard Matter features. Tried it with
+something else? Please [open an issue](https://github.com/KabirRao1/lightdeck/issues) to say whether it worked,
+and it'll be added here.
+
 ## Contents
 
+- [Tested devices](#tested-devices)
 - [Screenshots](#screenshots)
 - [Install](#install)
 - [Add your first light](#add-your-first-light)
