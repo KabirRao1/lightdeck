@@ -65,6 +65,7 @@ and it'll be added here.
 - [Troubleshooting and FAQ](#troubleshooting-and-faq)
 - [How it works (and why Rust)](#how-it-works-and-why-rust)
 - [Build from source](#build-from-source)
+- [Code signing policy](#code-signing-policy) · [Privacy policy](#privacy-policy)
 - [Contributing](#contributing) · [License](#license)
 
 ## Screenshots
@@ -95,9 +96,10 @@ and it'll be added here.
    **`Lightdeck_x.y.z_x64-setup.exe`**.
 2. Run it. It installs just for your user account, so **no administrator password is needed**, and it includes
    everything Lightdeck needs. You don't have to install Rust, Node.js or anything else.
-3. **"Windows protected your PC"?** Lightdeck isn't code-signed yet (certificates cost money), so Windows
-   SmartScreen may warn you the first time. Click **More info → Run anyway**. If you'd rather not, you can
-   [build it yourself](#build-from-source) from this source code.
+3. **"Windows protected your PC"?** Releases are being moved to code signing (see the
+   [Code signing policy](#code-signing-policy)). Unsigned builds, and new signed releases until Windows has seen
+   enough downloads, may trigger a SmartScreen warning. Click **More info → Run anyway**. If you'd rather not,
+   you can [build it yourself](#build-from-source) from this source code.
 4. Lightdeck starts right away and shows up in the top-right corner of your desktop. You'll also find a 💡 icon
    in the system tray (bottom-right, next to the clock; it may be hidden under the **^** arrow).
 
@@ -410,6 +412,33 @@ The Rust core and the engine exchange one JSON object per line:
 | `remove` | `nodeId` | Unpair a device |
 
 Events: `ready`, `status` (pairing progress), `stopped`, `fatal`.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+- **What is signed:** the Lightdeck application (`lightdeck.exe`) and the installer
+  (`Lightdeck_x.y.z_x64-setup.exe`), both built from this repository by the
+  [Release workflow](.github/workflows/release.yml) on GitHub-hosted runners. The bundled Node.js runtime
+  (`lightdeck-engine.exe`) is an unmodified upstream binary, already signed by the OpenJS Foundation, and is not
+  re-signed. The SignPath artifact configurations are in [`.signpath/`](.signpath/artifact-configurations).
+- **Team roles:**
+  - Committers and reviewers: [KabirRao1](https://github.com/KabirRao1)
+  - Approvers: [KabirRao1](https://github.com/KabirRao1)
+
+  Every release is manually approved before signing. Pull requests from outside contributors are reviewed
+  before merging.
+
+### Privacy policy
+
+This program will not transfer any information to other networked systems unless specifically requested by the
+user or the person installing or operating it. Specifically:
+
+- Lightdeck communicates only with the Matter devices you pair with it, on your local network.
+- It has no telemetry, analytics, accounts or cloud services.
+- The installer downloads Microsoft's WebView2 runtime from Microsoft only if it isn't already installed (it's
+  built into Windows 11), subject to [Microsoft's privacy statement](https://privacy.microsoft.com/privacystatement).
 
 ## Contributing
 
