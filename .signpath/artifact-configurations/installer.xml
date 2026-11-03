@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration "installer": signs the NSIS installer.
+  Input: the GitHub workflow artifact "unsigned-installer" (a ZIP containing Lightdeck_<version>_x64-setup.exe).
+  The installer is built around the already-signed lightdeck.exe (see .github/workflows/release.yml).
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="Lightdeck_*_x64-setup.exe" product-name="Lightdeck">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

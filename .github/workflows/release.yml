@@ -1,6 +1,14 @@
 name: Release
 
-# Push a tag like v0.1.0 to build the Windows installer and attach it to a draft GitHub release.
+# Push a tag like v0.2.0 to build, sign (via SignPath) and draft a GitHub release.
+# "Run workflow" (manual) builds and signs too, but doesn't create a release.
+#
+# Signing happens in two steps because the installer has to contain the *signed* app:
+#   1. build the app -> SignPath signs lightdeck.exe
+#   2. package the installer around the signed exe -> SignPath signs the installer
+# Signing is skipped (unsigned build) until the repository variable SIGNPATH_ENABLED is "true".
+# See the "Code signing policy" section of the README.
+
 on:
   push:
     tags: ["v*"]
@@ -8,16 +16,21 @@ on:
 
 permissions:
   contents: write
+  actions: read
+
+env:
+  SIGN: ${{ vars.SIGNPATH_ENABLED == 'true' }}
 
 jobs:
-  build-windows:
+  build-sign-release:
     runs-on: windows-latest
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
@@ -32,11 +45,97 @@ jobs:
       - name: Type-check UI
         run: npm run check
 
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build app and installer
+        run: npx tauri build --bundles nsis
+
+      # ---- Step 1: sign the app executable ---------------------------------------------------------------
+      - name: Upload unsigned app
+        id: upload-app
+        if: env.SIGN == 'true'
+        uses: actions/upload-artifact@v4
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Lightdeck ${{ github.ref_name }}
-          releaseBody: Download the `x64-setup.exe` below and run it. See the README for how to add devices.
-          releaseDraft: true
+          name: unsigned-app
+          path: src-tauri/target/release/lightdeck.exe
+          if-no-files-found: error
+
+      - name: Sign app (SignPath)
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: app-exe
+          github-artifact-id: ${{ steps.upload-app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600 # time for a manual approval
+          output-artifact-directory: signed/app
+
+      # ---- Step 2: rebuild the installer around the signed exe, then sign it ----------------------------
+      - name: Package installer with the signed app
+        if: env.SIGN == 'true'
+        shell: pwsh
+        run: |
+          Copy-Item signed/app/lightdeck.exe src-tauri/target/release/lightdeck.exe -Force
+          Remove-Item src-tauri/target/release/bundle/nsis/*.exe
+          npx tauri bundle --bundles nsis
+          # Tauri must not modify the already-signed exe while packaging.
+          $status = (Get-AuthenticodeSignature src-tauri/target/release/lightdeck.exe).Status
+          if ($status -ne 'Valid') { throw "lightdeck.exe signature is $status after packaging" }
+
+      - name: Upload unsigned installer
+        id: upload-installer
+        if: env.SIGN == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+      - name: Sign installer (SignPath)
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed/installer
+
+      # ---- Publish -------------------------------------------------------------------------------------
+      - name: Collect installer
+        id: collect
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist-release | Out-Null
+          $src = if ($env:SIGN -eq 'true') { 'signed/installer' } else { 'src-tauri/target/release/bundle/nsis' }
+          Copy-Item "$src/*.exe" dist-release/
+          Get-ChildItem dist-release/*.exe | ForEach-Object {
+            "{0}  signature: {1}" -f $_.Name, (Get-AuthenticodeSignature $_.FullName).Status
+          }
+
+      - name: Upload installer (workflow artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: dist-release/*.exe
+
+      - name: Create draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $signed = if ($env:SIGN -eq 'true') { "This release is code-signed." } else { "This build is **not** code-signed yet." }
+          $notes = @"
+          Download the ``x64-setup.exe`` below and run it. See the [README](https://github.com/${{ github.repository }}#add-your-first-light) for how to add devices.
+
+          $signed See the [Code signing policy](https://github.com/${{ github.repository }}#code-signing-policy).
+          "@
+          gh release create $tag dist-release/*.exe --draft --title "Lightdeck $tag" --notes $notes
